@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>App-Liste - Filter und Live-Suche</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f9f9f9;
+            color: #333;
+        }
+        .app-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-around;
+        }
+        .app {
+            border: 1px solid #ccc;
+            margin: 10px;
+            padding: 10px;
+            width: 300px;
+            background-color: white;
+        }
+        .app img {
+            max-width: 100px;
+            height: auto;
+        }
+        .app h2 {
+            font-size: 1.2em;
+            margin: 0;
+        }
+        .filters {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<h1>App-Quellen-Filter mit A-Z, Datumssortierung und Live-Suche</h1>
+
+<div class="filters">
+    <!-- Quellenauswahl -->
+    <label><input type="checkbox" id="swaggyP" checked> SwaggyP</label>
+    <label><input type="checkbox" id="trollStore" checked> TrollStore</label>
+    <label><input type="checkbox" id="altStore" checked> AltStore</label>
+    <label><input type="checkbox" id="cyPwn" checked> CyPwn</label>
+    <label><input type="checkbox" id="quantumSource" checked> Quantum Source</label>
+    <label><input type="checkbox" id="quantumSourcePlus" checked> Quantum Source++</label>
+    <label><input type="checkbox" id="wuXuLibraryPlus" checked> WuXu's Library++</label>
+    <label><input type="checkbox" id="burritoSoftware" checked> Burrito Software</label>
+
+    <!-- Datumsbereich Filter -->
+    <label>
+        <select id="dateRange">
+            <option value="1day">Letzter Tag</option>
+            <option value="1week">Letzte Woche</option>
+            <option value="1month">Letzter Monat</option>
+            <option value="1year" selected>Letztes Jahr</option>
+        </select>
+    </label>
+
+    <!-- A-Z und Datumssortierung -->
+    <label>
+        Sortieren nach: 
+        <select id="sortBy">
+            <option value="a-z">A-Z</option>
+            <option value="dateNewest">Datum (Neueste zuerst)</option>
+            <option value="dateOldest">Datum (Älteste zuerst)</option>
+        </select>
+    </label>
+
+    <!-- Live-Suche -->
+    <label>
+        Suche: 
+        <input type="text" id="searchQuery" onkeyup="applyFilters()" placeholder="App suchen...">
+    </label>
+
+    <button onclick="applyFilters()">Filter anwenden</button>
+</div>
+
+<div class="app-container" id="app-container"></div>
+
+<script>
+    // URLs der JSON-Dateien
+    const sources = {
+        swaggyP: 'https://raw.githubusercontent.com/swaggyP36000/TrollStore-IPAs/main/apps.json',
+        trollStore: 'https://raw.githubusercontent.com/swaggyP36000/TrollStore-IPAs/main/apps.json',
+        altStore: 'https://quarksources.github.io/altstore-complete.json',
+        cyPwn: 'https://ipa.cypwn.xyz/cypwn.json',
+        quantumSource: 'https://quarksources.github.io/quantumsource.json',
+        quantumSourcePlus: 'https://quarksources.github.io/quantumsource++.json',
+        wuXuLibraryPlus: 'https://wuxu1.github.io/wuxu-complete-plus.json',
+        burritoSoftware: 'https://burritosoftware.github.io/altstore/channels/burritosource.json'
+    };
+
+    let allApps = []; // Alle Apps speichern für Sortierung und Filter
+
+    // Funktion zum Abrufen und Anzeigen von Apps aus JSON-Daten
+    function displayAppsFromJson(jsonUrl, dateRange) {
+        fetch(jsonUrl)
+            .then(response => response.json())
+            .then(data => {
+                const apps = data.apps;
+                const currentDate = new Date();
+
+                // Iteriere über jede App und filtere nach Datumsbereich
+                apps.forEach(app => {
+                    const latestVersion = app.versions ? app.versions[0] : { version: app.version, date: app.versionDate, size: app.size, downloadURL: app.downloadURL };
+                    const appDate = new Date(latestVersion.date);
+
+                    if (isInDateRange(appDate, currentDate, dateRange)) {
+                        allApps.push({
+                            name: app.name,
+                            version: latestVersion.version,
+                            date: latestVersion.date,
+                            iconURL: app.iconURL,
+                            downloadURL: latestVersion.downloadURL,
+                            size: latestVersion.size
+                        });
+                    }
+                });
+
+                applySortingAndDisplay(); // Sortieren und die gefilterten Apps anzeigen
+            })
+            .catch(error => console.error('Fehler beim Abrufen der JSON-Daten:', error));
+    }
+
+    // Funktion, um zu überprüfen, ob ein Datum im ausgewählten Datumsbereich liegt
+    function isInDateRange(appDate, currentDate, dateRange) {
+        const timeDifference = currentDate - appDate; // Differenz in Millisekunden
+
+        switch (dateRange) {
+            case '1day':
+                return timeDifference <= (24 * 60 * 60 * 1000); // Letzter Tag
+            case '1week':
+                return timeDifference <= (7 * 24 * 60 * 60 * 1000); // Letzte Woche
+            case '1month':
+                return timeDifference <= (30 * 24 * 60 * 60 * 1000); // Letzter Monat
+            case '1year':
+                return timeDifference <= (365 * 24 * 60 * 60 * 1000); // Letztes Jahr
+            default:
+                return true;
+        }
+    }
+
+    // Funktion, um die Filter auf Basis der ausgewählten Quellen, des Datumsbereichs und der Sortierung anzuwenden
+    function applyFilters() {
+        allApps = []; // Alle Apps zurücksetzen
+        const appContainer = document.getElementById('app-container');
+        const dateRange = document.getElementById('dateRange').value;
+        const searchQuery = document.getElementById('searchQuery').value.toLowerCase();
+        appContainer.innerHTML = ''; // App-Container leeren
+
+        if (document.getElementById('swaggyP').checked) displayAppsFromJson(sources.swaggyP, dateRange);
+        if (document.getElementById('trollStore').checked) displayAppsFromJson(sources.trollStore, dateRange);
+        if (document.getElementById('altStore').checked) displayAppsFromJson(sources.altStore, dateRange);
+        if (document.getElementById('cyPwn').checked) displayAppsFromJson(sources.cyPwn, dateRange);
+        if (document.getElementById('quantumSource').checked) displayAppsFromJson(sources.quantumSource, dateRange);
+        if (document.getElementById('quantumSourcePlus').checked) displayAppsFromJson(sources.quantumSourcePlus, dateRange);
+        if (document.getElementById('wuXuLibraryPlus').checked) displayAppsFromJson(sources.wuXuLibraryPlus, dateRange);
+        if (document.getElementById('burritoSoftware').checked) displayAppsFromJson(sources.burritoSoftware, dateRange);
+
+        applySortingAndDisplay(searchQuery);
+    }
+
+    // Funktion zum Anwenden der Sortierung, Suche und Anzeigen der gefilterten Apps
+    function applySortingAndDisplay(searchQuery = '') {
+        const sortBy = document.getElementById('sortBy').value;
+
+        if (sortBy === 'a-z') {
+            allApps.sort((a, b) => a.name.localeCompare(b.name));
+        } else if (sortBy === 'dateNewest') {
+            allApps.sort((a, b) => new Date(b.date) - new Date(a.date));
+        } else if (sortBy === 'dateOldest') {
+            allApps.sort((a, b) => new Date(a.date) - new Date(b.date));
+        }
+
+        const appContainer = document.getElementById('app-container');
+        appContainer.innerHTML = ''; // App-Container leeren
+
+        allApps
+            .filter(app => app.name.toLowerCase().includes(searchQuery)) // Live-Suche
+            .forEach(app => {
+                const sizeInMB = (app.size / (1024 * 1024)).toFixed(2); // Größe in MB umrechnen
+
+                // Erstelle ein Div, um App-Details anzuzeigen
+                const appDiv = document.createElement('div');
+                appDiv.className = 'app';
+
+                // App-Details hinzufügen
+                appDiv.innerHTML = `
+                    <img src="${app.iconURL}" alt="${app.name} icon" onerror="this.src='https://via.placeholder.com/100';">
+                    <h2>${app.name}</h2>
+                    <p><strong>Version:</strong> ${app.version}</p>
+                    <p><strong>Datum:</strong> ${new Date(app.date).toLocaleDateString()}</p>
+                    <p><strong>Größe:</strong> ${sizeInMB} MB</p>
+                    <p><a href="${app.downloadURL}" target="_blank">Herunterladen</a></p>
+                `;
+
+                // Füge das App-Div dem Container hinzu
+                appContainer.appendChild(appDiv);
+            });
+    }
+
+    // Apps beim Laden der Seite nach den Standardfiltern anzeigen
+    applyFilters();
+</script>
+
+</body>
+</html>
